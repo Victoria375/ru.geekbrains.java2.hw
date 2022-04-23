@@ -4,6 +4,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Date;
+import java.text.SimpleDateFormat;
 
 public class Client extends JFrame implements ActionListener, Thread.UncaughtExceptionHandler {
     private static final int WIDTH = 400;
@@ -25,6 +29,7 @@ public class Client extends JFrame implements ActionListener, Thread.UncaughtExc
     private final JButton btnSend = new JButton("Send");
     private final JList<String> userList = new JList<>();
 
+    private SimpleDateFormat formater = new SimpleDateFormat("HH:mm:ss");
 
     private Client() {
         Thread.setDefaultUncaughtExceptionHandler(this);
@@ -42,6 +47,8 @@ public class Client extends JFrame implements ActionListener, Thread.UncaughtExc
         userList.setListData(users);
         spUsers.setPreferredSize(new Dimension(100, 0));
         cbAlwaysOnTop.addActionListener(this);
+        btnSend.addActionListener(this);
+        tfMessage.addActionListener(this);
 
         panelTop.add(tfIPAddress);
         panelTop.add(tfPort);
@@ -75,9 +82,42 @@ public class Client extends JFrame implements ActionListener, Thread.UncaughtExc
         Object src = e.getSource();
         if (src == cbAlwaysOnTop) {
             setAlwaysOnTop(cbAlwaysOnTop.isSelected());
+        } else if(src == btnSend || src == tfMessage) {
+            sendMsg();
         } else {
             throw new RuntimeException("Action for component unimplemented");
         }
+    }
+
+    private void sendMsg() {
+        String msg = tfMessage.getText();
+        String username = tfLogin.getText();
+        if ("".equals(msg)) return;
+        tfMessage.setText("");
+        tfMessage.grabFocus();
+        Date date = new Date();
+        putLog(String.format("%s %s: %s", formater.format(date), username, msg));
+        createLogFile(msg, username, date);
+    }
+
+    private void createLogFile(String msg, String username, Date date) {
+        try (FileWriter file = new FileWriter("log.txt", true)) {
+            file.write(String.format(formater.format(date)) + " " + username + ": " + msg + "\n");
+            file.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void putLog(String msg) {
+        if ("".equals(msg)) return;
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                log.append(msg + "\n");
+                log.setCaretPosition(log.getDocument().getLength());
+            }
+        });
     }
 
     @Override
