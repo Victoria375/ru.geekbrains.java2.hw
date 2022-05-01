@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.net.Socket;
 
 public class Client extends JFrame implements ActionListener, Thread.UncaughtExceptionHandler, SocketThreadListener {
-    private static final int WIDTH = 400;
+    private static final int WIDTH = 600;
     private static final int HEIGHT = 300;
 
     private final JTextArea log = new JTextArea();
@@ -23,7 +23,7 @@ public class Client extends JFrame implements ActionListener, Thread.UncaughtExc
     private final JPanel panelBottom = new JPanel(new BorderLayout());
     private final JButton btnDisconnect = new JButton("Disconnect");
     private final JTextField tfMessage = new JTextField();
-    private final JButton btnSend = new JButton("Send");
+    private final JButton btnSend = new JButton("<html><b>Send</b></html>");
     private final JList<String> userList = new JList<>();
 
     private boolean shownIoErrors = false;
@@ -49,6 +49,8 @@ public class Client extends JFrame implements ActionListener, Thread.UncaughtExc
         btnSend.addActionListener(this);
         tfMessage.addActionListener(this);
         btnLogin.addActionListener(this);
+        btnDisconnect.addActionListener(this);
+        panelBottom.setVisible(false);
 
         panelTop.add(tfIPAddress);
         panelTop.add(tfPort);
@@ -86,6 +88,8 @@ public class Client extends JFrame implements ActionListener, Thread.UncaughtExc
             sendMessage();
         } else if (src == btnLogin) {
             connect();
+        } else if (src == btnDisconnect) {
+            socketThread.close();
         } else {
             throw new RuntimeException("Action for component unimplemented");
         }
@@ -106,11 +110,11 @@ public class Client extends JFrame implements ActionListener, Thread.UncaughtExc
         tfMessage.setText(null);
         tfMessage.grabFocus();
         socketThread.sendMessage(msg);
-//        tfMessage.requestFocusInWindow();
 //        putLog(String.format("%s: %s", username, msg));
-        //wrtMsgToLogFile(msg, username);
+//        wrtMsgToLogFile(msg, username);
 
     }
+//codewars, hackerrank, leetcode, codegame
 
     private void wrtMsgToLogFile(String msg, String username) {
         try (FileWriter out = new FileWriter("log.txt", true)) {
@@ -151,7 +155,7 @@ public class Client extends JFrame implements ActionListener, Thread.UncaughtExc
     @Override
     public void uncaughtException(Thread t, Throwable e) {
         e.printStackTrace();
-        showException(t, e);
+        //showException(t, e);
     }
 
     @Override
@@ -161,12 +165,17 @@ public class Client extends JFrame implements ActionListener, Thread.UncaughtExc
 
     @Override
     public void onSocketStop(SocketThread t) {
-        putLog("Stop");
+        panelBottom.setVisible(false);
+        panelTop.setVisible(true);
     }
 
     @Override
     public void onSocketReady(SocketThread t, Socket socket) {
-        putLog("Ready");
+        panelBottom.setVisible(true);
+        panelTop.setVisible(false);
+        String login = tfLogin.getText();
+        String pass = new String(tfPassword.getPassword());
+        t.sendMessage(Messages.getAuthRequest(login, pass));
     }
 
     @Override
