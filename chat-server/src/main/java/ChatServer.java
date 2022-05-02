@@ -83,24 +83,29 @@ public class ChatServer implements ServerSocketThreadListener, SocketThreadListe
      * */
 
     @Override
-    public void onSocketStart(SocketThread t, Socket s) {
+    public synchronized void onSocketStart(SocketThread t, Socket s) {
         putLog("Client connected");
     }
 
     @Override
-    public void onSocketStop(SocketThread t) {
+    public synchronized void onSocketStop(SocketThread t) {
         putLog("client disconnected");
-        clients.remove(t);
+        ClientThread client = (ClientThread) t;
+        clients.remove(client);
+        if (client.isAuthorized() && !client.isReconnecting()) {
+            sendToAllAuthorized(Messages.getTypeBroadcast("Server", client.getNickname() + " disconnected"));
+        }
+        sendToAllAuthorized(Messages.getUserList(getUsers()));
     }
 
     @Override
-    public void onSocketReady(SocketThread t, Socket socket) {
+    public synchronized void onSocketReady(SocketThread t, Socket socket) {
         putLog("client is ready");
         clients.add(t);
     }
 
     @Override
-    public void onReceiveString(SocketThread t, Socket s, String msg) {
+    public synchronized void onReceiveString(SocketThread t, Socket s, String msg) {
         ClientThread client = (ClientThread) t;
         if (client.isAuthorized()) {
             handleAuthMsg(client, msg);
@@ -110,7 +115,15 @@ public class ChatServer implements ServerSocketThreadListener, SocketThreadListe
     }
 
     private void handleAuthMsg(ClientThread client, String msg) {
-        sendToAllAuthorized(msg);
+        String[] arr = msg.split(Messages.DELIMITER);
+        String msgType = arr[0];
+        switch (msgType) {
+            case Messages.USER_BROADCAST:
+                sendToAllAuthorized(Messages.getTypeBroadcast(client.getNickname(), arr[1]));
+                break;
+            default:
+                client.msgFormatError(msg);
+        }
     }
 
     private void sendToAllAuthorized(String msg) {
@@ -134,13 +147,41 @@ public class ChatServer implements ServerSocketThreadListener, SocketThreadListe
             putLog("Invalid login attempt " + login);
             client.authFail();
             return;
+        } else {
+            ClientThread oldClient = findClientByNickname(nickname);
+            client.authAccept(nickname);
+            if (oldClient == null){
+                sendToAllAuthorized(Messages.getTypeBroadcast("Server", nickname + " connected."));
+            } else {
+                oldClient.reconnect();
+                clients.remove(oldClient);
+            }
         }
-        client.authAccept(nickname);
-        sendToAllAuthorized(Messages.getTypeBroadcast("Server", nickname + " connected."));
+        sendToAllAuthorized(Messages.getUserList(getUsers()));
     }
 
     @Override
     public void onSocketException(SocketThread t, Throwable e) {
         e.printStackTrace();
+    }
+
+    private String getUsers() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < clients.size(); i++) {
+            ClientThread client = (ClientThread) clients.get(i);
+            if (!client.isAuthorized()) continue;
+            sb.append(client.getNickname()).append(Messages.DELIMITER);
+        }
+        return sb.toString();
+    }
+
+    private synchronized ClientThread findClientByNickname(String nickname) {
+        for (int i = 0; i < clients.size(); i++) {
+            ClientThread client = (ClientThread) clients.get(i);
+            if (!client.isAuthorized()) continue;
+            if (client.getNickname().equals(nickname))
+                return client;
+        }
+        return null;
     }
 }
